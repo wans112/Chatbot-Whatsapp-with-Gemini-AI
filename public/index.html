@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Panel WhatsApp Bot</title>
+</head>
+<body>
+    <h2>Panel WhatsApp Bot</h2>
+    <button id="startBtn">Start</button>
+    <button id="stopBtn">Stop</button>
+    <button id="logoutBtn">Logout</button>
+    <div id="status"></div>
+    <div id="qrcode"></div>
+
+    <h3>Manajemen API Key Gemini</h3>
+    <form id="addApiKeyForm">
+        <div>Masukkan API Key Gemini:</div>
+        <input type="text" id="newApiKeyInput" placeholder="Tambah API Key Gemini" required>
+        <button type="submit">Tambah API Key</button>
+    </form>
+    <ul id="apiKeyList"></ul>
+    <button id="toggleApiKeyBtn" type="button">Tampilkan/Sembunyikan API Key</button>
+    <div id="apiKeyMsg"></div>
+
+    <h3>Spreadsheet Config</h3>
+    <form id="addSpreadsheetForm">
+        <div>Masukkan Spreadsheet ID dan Range:</div>
+        <input type="text" id="newSpreadsheetIdInput" placeholder="Spreadsheet ID" required>
+        <input type="text" id="newRangeInput" placeholder="Range (misal: Sheet1!A1:C10)" required>
+        <button type="submit">Tambah Spreadsheet</button>
+    </form>
+    <ul id="spreadsheetList"></ul>
+    <div id="spreadsheetConfigMsg"></div>
+
+    <h3>Instruksi Sistem Gemini</h3>
+    <form id="instruksiForm">
+        <div>Masukan Instruksi:</div>
+        <textarea id="instruksiInput" rows="3" style="width:100%" placeholder="Instruksi sistem">{data}</textarea>
+        <button type="submit">Simpan Instruksi</button>
+    </form>
+    <div id="instruksiMsg"></div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script>
+    const socket = io();
+    socket.on('status', function(msg) {
+        document.getElementById('status').innerText = msg;
+    });
+
+    let apiKeyVisible = false;
+
+    async function loadApiKeys() {
+        const res = await fetch('/get-apikeys');
+        const data = await res.json();
+        const list = document.getElementById('apiKeyList');
+        list.innerHTML = '';
+        (data.apiKeys || []).forEach(key => {
+            const li = document.createElement('li');
+            li.textContent = apiKeyVisible ? key : '***************';
+            const btn = document.createElement('button');
+            btn.textContent = 'Hapus';
+            btn.onclick = async () => {
+                if (confirm('Hapus API key ini?')) {
+                    const res = await fetch('/delete-apikey', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ apiKey: key })
+                    });
+                    document.getElementById('apiKeyMsg').innerText = await res.text();
+                    loadApiKeys();
+                }
+            };
+            li.appendChild(btn);
+            list.appendChild(li);
+        });
+    }
+    loadApiKeys();
+
+    document.getElementById('toggleApiKeyBtn').onclick = function() {
+        apiKeyVisible = !apiKeyVisible;
+        this.textContent = apiKeyVisible ? 'Sembunyikan API Key' : 'Tampilkan API Key';
+        loadApiKeys();
+    };
+
+    document.getElementById('addApiKeyForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const apiKey = document.getElementById('newApiKeyInput').value;
+        const res = await fetch('/add-apikey', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ apiKey })
+        });
+        document.getElementById('apiKeyMsg').innerText = await res.text();
+        document.getElementById('newApiKeyInput').value = '';
+        loadApiKeys();
+    };
+
+    socket.on('qr-image', function(qrImage) {
+        const qrDiv = document.getElementById('qrcode');
+        if (qrImage) {
+            qrDiv.innerHTML = `<img src="${qrImage}" alt="QR Code" style="width:250px;height:250px;">`;
+        } else {
+            qrDiv.innerHTML = '';
+        }
+    });
+
+    document.getElementById('startBtn').onclick = async function() {
+        const res = await fetch('/start');
+        const text = await res.text();
+    };
+    document.getElementById('stopBtn').onclick = async function() {
+        const res = await fetch('/stop');
+        const text = await res.text();
+    };
+    document.getElementById('logoutBtn').onclick = async function() {
+        if (confirm('Yakin ingin logout dan menghapus data login?')) {
+            const res = await fetch('/logout');
+            const text = await res.text();
+        }
+    };
+
+    async function loadSpreadsheets() {
+        const res = await fetch('/get-spreadsheet-configs');
+        const data = await res.json();
+        const list = document.getElementById('spreadsheetList');
+        list.innerHTML = '';
+        (data.spreadsheets || []).forEach(s => {
+            const li = document.createElement('li');
+            li.textContent = `${s.spreadsheetId} | ${s.range}`;
+            const btn = document.createElement('button');
+            btn.textContent = 'Hapus';
+            btn.onclick = async () => {
+                if (confirm('Hapus spreadsheet config ini?')) {
+                    const res = await fetch('/delete-spreadsheet-config', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ spreadsheetId: s.spreadsheetId, range: s.range })
+                    });
+                    document.getElementById('spreadsheetConfigMsg').innerText = await res.text();
+                    loadSpreadsheets();
+                }
+            };
+            li.appendChild(btn);
+            list.appendChild(li);
+        });
+    }
+    loadSpreadsheets();
+
+    document.getElementById('addSpreadsheetForm').onsubmit = async function(e) {
+        e.preventDefault();
+        const spreadsheetId = document.getElementById('newSpreadsheetIdInput').value;
+        const range = document.getElementById('newRangeInput').value;
+        const res = await fetch('/add-spreadsheet-config', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ spreadsheetId, range })
+        });
+        document.getElementById('spreadsheetConfigMsg').innerText = await res.text();
+        document.getElementById('newSpreadsheetIdInput').value = '';
+        document.getElementById('newRangeInput').value = '';
+        loadSpreadsheets();
+    };
+
+    fetch('/get-instruksi')
+    .then(res => res.json())
+    .then(data => {
+        document.getElementById('instruksiInput').value = data.instruksiSistem || '';
+    });
+
+    // Simpan instruksi
+    document.getElementById('instruksiForm').onsubmit = async function(e) {
+    e.preventDefault();
+    const instruksiSistem = document.getElementById('instruksiInput').value;
+    const res = await fetch('/set-instruksi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ instruksiSistem })
+    });
+    document.getElementById('instruksiMsg').innerText = await res.text();
+    };
+    </script>
+</body>
+</html>

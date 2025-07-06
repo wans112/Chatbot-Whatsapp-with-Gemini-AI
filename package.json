@@ -1,0 +1,20 @@
+{
+  "dependencies": {
+    "@google/genai": "^1.8.0",
+    "express": "^5.1.0",
+    "googleapis": "^150.0.1",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1",
+    "whatsapp-web.js": "^1.31.0"
+  },
+  "name": "whatsappwebjs",
+  "version": "1.0.0",
+  "main": "app.js",
+  "scripts": {
+    "start": "node app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": ""
+}
