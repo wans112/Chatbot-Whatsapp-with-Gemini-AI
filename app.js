@@ -11,6 +11,26 @@ const { Client, LocalAuth } = pkg;
 let client;
 let isStarted = false;
 
+const allowedNumbersPath = './config/allowed-numbers.json';
+
+// Helper functions for allowed numbers config
+async function getAllowedNumbersConfig() {
+    try {
+        const data = await fs.readFile(allowedNumbersPath, 'utf-8');
+        return JSON.parse(data);
+    } catch {
+        // Default value if file not found or error
+        return {
+            allowOnlyCertainNumbers: false,
+            allowedNumbers: ['6281615515685@c.us']
+        };
+    }
+}
+
+async function saveAllowedNumbersConfig(config) {
+    await fs.writeFile(allowedNumbersPath, JSON.stringify(config, null, 2));
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
@@ -24,6 +44,7 @@ io.on('connection', (socket) => {
     socket.emit('status', isStarted ? 'Bot aktif.' : 'Bot belum berjalan.');
 });
 
+// API KEY
 app.get('/get-apikeys', async (req, res) => {
     try {
         const data = await fs.readFile('./config/apikey.json', 'utf-8');
@@ -60,6 +81,7 @@ app.post('/delete-apikey', express.json(), async (req, res) => {
     res.send('API key berhasil dihapus!');
 });
 
+// SPREADSHEET CONFIG
 app.get('/get-spreadsheet-configs', async (req, res) => {
     try {
         const data = await fs.readFile('./config/spreadsheet-config.json', 'utf-8');
@@ -95,6 +117,7 @@ app.post('/delete-spreadsheet-config', express.json(), async (req, res) => {
     res.send('Spreadsheet config berhasil dihapus!');
 });
 
+// INSTRUKSI
 app.get('/get-instruksi', async (req, res) => {
     try {
         const data = await fs.readFile('./config/instruksi.json', 'utf-8');
@@ -112,6 +135,49 @@ app.post('/set-instruksi', express.json(), async (req, res) => {
     res.send('Instruksi berhasil disimpan!');
 });
 
+// ALLOW ONLY CERTAIN NUMBERS
+app.get('/get-allow-only-certain-numbers', async (req, res) => {
+    const config = await getAllowedNumbersConfig();
+    res.json({ allowOnlyCertainNumbers: config.allowOnlyCertainNumbers });
+});
+
+app.post('/set-allow-only-certain-numbers', express.json(), async (req, res) => {
+    const { allow } = req.body;
+    const config = await getAllowedNumbersConfig();
+    config.allowOnlyCertainNumbers = !!allow;
+    await saveAllowedNumbersConfig(config);
+    res.json({ status: 'ok', allowOnlyCertainNumbers: config.allowOnlyCertainNumbers });
+});
+
+// ALLOWED NUMBERS MANAGEMENT
+app.get('/get-allowed-numbers', async (req, res) => {
+    const config = await getAllowedNumbersConfig();
+    res.json({ allowedNumbers: config.allowedNumbers });
+});
+
+app.post('/add-allowed-number', express.json(), async (req, res) => {
+    const { number } = req.body;
+    if (!number) return res.status(400).send('Nomor tidak boleh kosong!');
+    const config = await getAllowedNumbersConfig();
+    if (!config.allowedNumbers.includes(number)) {
+        config.allowedNumbers.push(number);
+        await saveAllowedNumbersConfig(config);
+    }
+    res.json({ allowedNumbers: config.allowedNumbers });
+});
+
+app.post('/delete-allowed-number', express.json(), async (req, res) => {
+    const { number } = req.body;
+    const config = await getAllowedNumbersConfig();
+    const idx = config.allowedNumbers.indexOf(number);
+    if (idx > -1) {
+        config.allowedNumbers.splice(idx, 1);
+        await saveAllowedNumbersConfig(config);
+    }
+    res.json({ allowedNumbers: config.allowedNumbers });
+});
+
+// LOGOUT FUNCTION
 async function doLogout() {
     if (isStarted && client) {
         await client.destroy();
@@ -136,6 +202,7 @@ async function doLogout() {
     }
 }
 
+// START BOT
 app.get('/start', (req, res) => {
     if (!isStarted) {
         client = new Client({
@@ -154,10 +221,15 @@ app.get('/start', (req, res) => {
         });
 
         client.on('message', async message => {
+            const config = await getAllowedNumbersConfig();
+            if (config.allowOnlyCertainNumbers && !config.allowedNumbers.includes(message.from)) {
+                return;
+            }
+
             if (message.hasMedia) {
                 const media = await message.downloadMedia();
                 if (media) {
-                    if (media.mimetype.startsWith('audio/')){
+                    if (media.mimetype.startsWith('audio/')) {
                         const chat = await message.getChat();
                         await chat.sendStateRecording();
                         const fileType = 'audio/ogg';
@@ -183,11 +255,12 @@ app.get('/start', (req, res) => {
                             message.reply(balasan);
                         }
                         await chat.clearState();
-                        await fs.unlink(imagePath)
+                        await fs.unlink(imagePath);
                     }
                 }
                 return;
             }
+
             const balasan = await textAI(message.body, message.from);
             if (balasan) {
                 const chat = await message.getChat();
@@ -211,6 +284,7 @@ app.get('/start', (req, res) => {
     }
 });
 
+// STOP BOT
 app.get('/stop', async (req, res) => {
     if (isStarted && client) {
         io.emit('status', 'Mematikan bot, harap tunggu...');
@@ -226,6 +300,7 @@ app.get('/stop', async (req, res) => {
     }
 });
 
+// LOGOUT BOT
 app.get('/logout', async (req, res) => {
     await doLogout();
     res.send('Logout berhasil. Bot dihentikan dan data login dihapus.');

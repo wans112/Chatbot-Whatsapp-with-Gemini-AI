@@ -3,6 +3,7 @@
     "@google/genai": "^1.8.0",
     "express": "^5.1.0",
     "googleapis": "^150.0.1",
+    "pm2": "^6.0.8",
     "qrcode": "^1.5.4",
     "socket.io": "^4.8.1",
     "whatsapp-web.js": "^1.31.0"
