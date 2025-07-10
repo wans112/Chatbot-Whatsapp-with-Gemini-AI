@@ -7,13 +7,18 @@ import {
   getMemory,
   saveMemory,
   handleTambahCommand,
-  handleUpdateCommand
+  handleUpdateCommand,
+  getInstruksiSistemByNumber
 } from './config-util.js';
 import fs from 'fs/promises';
 
 export async function textAI(pesan, userId) {
   const spreadsheets = await getSpreadsheetConfigs();
-  let instruksiSistem = await getInstruksiSistem();
+
+  let instruksiSistem = await getInstruksiSistemByNumber(userId);
+  if (!instruksiSistem) {
+    instruksiSistem = await getInstruksiSistem();
+  }
   instruksiSistem = await buildInstruksiSistem(instruksiSistem, spreadsheets);
 
   let history = await getMemory(userId);
@@ -48,7 +53,11 @@ export async function textAI(pesan, userId) {
 
 export async function MediaAI(pathFile, pesan, fileType, userId) {
   const spreadsheets = await getSpreadsheetConfigs();
-  let instruksiSistem = await getInstruksiSistem();
+  
+  let instruksiSistem = await getInstruksiSistemByNumber(userId);
+  if (!instruksiSistem) {
+    instruksiSistem = await getInstruksiSistem();
+  }
   instruksiSistem = await buildInstruksiSistem(instruksiSistem, spreadsheets);
 
   let history = await getMemory(userId);

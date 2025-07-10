@@ -136,3 +136,11 @@ export async function handleUpdateCommand(pesan) {
     return 'Gagal mengupdate data di spreadsheet.';
   }
 }
+
+export async function getInstruksiSistemByNumber(number) {
+  try {
+    const data = JSON.parse(await fs.readFile(new URL('../config/instruksi-per-nomor.json', import.meta.url)));
+    if (data[number]) return data[number];
+  } catch {}
+  return null;
+}
